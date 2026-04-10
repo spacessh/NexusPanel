@@ -121,39 +121,46 @@ install_deps() {
     step "Installing system packages"
     case "$PKG" in
         apt)
-            (apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+            info "Installing base packages..."
+            apt-get update -qq >> "$LOG_FILE" 2>&1
+            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
                 curl wget git unzip zip nginx redis-server mariadb-server \
-                software-properties-common certbot python3-certbot-nginx) &
-            spinner $! "Installing base packages"
+                software-properties-common certbot python3-certbot-nginx >> "$LOG_FILE" 2>&1
+            log "Base packages installed"
 
-            (add-apt-repository -y ppa:ondrej/php >> "$LOG_FILE" 2>&1
-             apt-get update -qq >> "$LOG_FILE" 2>&1
-             DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+            info "Installing PHP 8.2..."
+            add-apt-repository -y ppa:ondrej/php >> "$LOG_FILE" 2>&1
+            apt-get update -qq >> "$LOG_FILE" 2>&1
+            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
                 php8.2-fpm php8.2-cli php8.2-mysql php8.2-mbstring php8.2-xml \
                 php8.2-bcmath php8.2-gd php8.2-zip php8.2-redis php8.2-curl \
-                php8.2-sockets php8.2-opcache >> "$LOG_FILE" 2>&1) &
-            spinner $! "Installing PHP 8.2"
+                php8.2-sockets php8.2-opcache >> "$LOG_FILE" 2>&1
+            log "PHP 8.2 installed"
 
-            (curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >> "$LOG_FILE" 2>&1
-             apt-get install -y -qq nodejs >> "$LOG_FILE" 2>&1) &
-            spinner $! "Installing Node.js 20"
+            info "Installing Node.js 20..."
+            curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >> "$LOG_FILE" 2>&1
+            apt-get install -y -qq nodejs >> "$LOG_FILE" 2>&1
+            log "Node.js installed"
             ;;
         dnf)
-            (dnf install -y epel-release >> "$LOG_FILE" 2>&1
-             dnf install -y curl wget git unzip zip nginx redis mariadb-server \
-                certbot python3-certbot-nginx >> "$LOG_FILE" 2>&1) &
-            spinner $! "Installing base packages"
+            info "Installing base packages..."
+            dnf install -y epel-release >> "$LOG_FILE" 2>&1
+            dnf install -y curl wget git unzip zip nginx redis mariadb-server \
+                certbot python3-certbot-nginx >> "$LOG_FILE" 2>&1
+            log "Base packages installed"
 
-            (dnf install -y "https://rpms.remirepo.net/enterprise/remi-release-${OS_VER}.rpm" >> "$LOG_FILE" 2>&1
-             dnf module reset php -y >> "$LOG_FILE" 2>&1
-             dnf module enable php:remi-8.2 -y >> "$LOG_FILE" 2>&1
-             dnf install -y php php-fpm php-mysqlnd php-mbstring php-xml \
-                php-bcmath php-gd php-zip php-redis php-curl php-sockets php-opcache >> "$LOG_FILE" 2>&1) &
-            spinner $! "Installing PHP 8.2"
+            info "Installing PHP 8.2..."
+            dnf install -y "https://rpms.remirepo.net/enterprise/remi-release-${OS_VER}.rpm" >> "$LOG_FILE" 2>&1
+            dnf module reset php -y >> "$LOG_FILE" 2>&1
+            dnf module enable php:remi-8.2 -y >> "$LOG_FILE" 2>&1
+            dnf install -y php php-fpm php-mysqlnd php-mbstring php-xml \
+                php-bcmath php-gd php-zip php-redis php-curl php-sockets php-opcache >> "$LOG_FILE" 2>&1
+            log "PHP 8.2 installed"
 
-            (curl -fsSL https://rpm.nodesource.com/setup_20.x | bash - >> "$LOG_FILE" 2>&1
-             dnf install -y nodejs >> "$LOG_FILE" 2>&1) &
-            spinner $! "Installing Node.js 20"
+            info "Installing Node.js 20..."
+            curl -fsSL https://rpm.nodesource.com/setup_20.x | bash - >> "$LOG_FILE" 2>&1
+            dnf install -y nodejs >> "$LOG_FILE" 2>&1
+            log "Node.js installed"
             ;;
     esac
 
@@ -231,27 +238,35 @@ install_panel() {
         warn "Dossier existant supprimé pour installation propre"
         rm -rf "$INSTALL_DIR"
     fi
-    mkdir -p "$INSTALL_DIR"
+    mkdir -p "$(dirname "$INSTALL_DIR")"
 
-    (git clone --depth=1 "$NEXUS_REPO" "$INSTALL_DIR" >> "$LOG_FILE" 2>&1) &
-    spinner $! "Cloning repository"
+    info "Cloning repository..."
+    git clone --depth=1 "$NEXUS_REPO" "$INSTALL_DIR" >> "$LOG_FILE" 2>&1 \
+        && log "Repository cloned" \
+        || error "Clone failed — check $LOG_FILE"
 
     cd "$INSTALL_DIR"
 
     step "Installing dependencies"
 
     if command -v composer &>/dev/null; then
-        (composer install --no-dev --optimize-autoloader --no-interaction >> "$LOG_FILE" 2>&1) &
-        spinner $! "PHP dependencies"
+        info "Installing PHP dependencies..."
+        composer install --no-dev --optimize-autoloader --no-interaction >> "$LOG_FILE" 2>&1 \
+            && log "PHP dependencies installed" \
+            || warn "Composer install failed — check $LOG_FILE"
     else
         warn "Composer non trouvé — skip PHP deps"
     fi
 
-    (npm ci >> "$LOG_FILE" 2>&1) &
-    spinner $! "Node dependencies"
+    info "Installing Node dependencies..."
+    npm ci >> "$LOG_FILE" 2>&1 \
+        && log "Node dependencies installed" \
+        || error "npm ci failed — check $LOG_FILE"
 
-    (npm run build >> "$LOG_FILE" 2>&1) &
-    spinner $! "Building frontend"
+    info "Building frontend..."
+    npm run build >> "$LOG_FILE" 2>&1 \
+        && log "Frontend built" \
+        || error "Build failed — check $LOG_FILE"
 
     step "Configuring application"
     cp .env.example .env
