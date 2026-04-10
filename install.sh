@@ -371,40 +371,61 @@ setup_dev_server() {
     $IS_ROOT && return 0
     step "Setting up dev server"
 
-    # Créer un script de démarrage simple
-    cat > "$INSTALL_DIR/start.sh" <<'START'
-#!/usr/bin/env bash
-cd "$(dirname "$0")"
-echo -e "\033[0;36m  → Starting NexusPanel dev server...\033[0m"
+    # Trouver un port libre aléatoire entre 4000 et 9000
+    find_free_port() {
+        local port
+        while true; do
+            port=$(( RANDOM % 5000 + 4000 ))
+            ! ss -tuln 2>/dev/null | grep -q ":${port} " && echo "$port" && return
+        done
+    }
 
-# PHP backend
+    VITE_PORT=$(find_free_port)
+    PHP_PORT=$(find_free_port)
+    # S'assurer que les deux ports sont différents
+    while [ "$PHP_PORT" = "$VITE_PORT" ]; do PHP_PORT=$(find_free_port); done
+
+    log "Frontend port: ${BOLD}${VITE_PORT}${NC}"
+    log "Backend port:  ${BOLD}${PHP_PORT}${NC}"
+
+    # Sauvegarder les ports dans .nexuspanel_ports
+    echo "VITE_PORT=${VITE_PORT}" > "$INSTALL_DIR/.nexuspanel_ports"
+    echo "PHP_PORT=${PHP_PORT}"  >> "$INSTALL_DIR/.nexuspanel_ports"
+
+    # Créer un script de démarrage
+    cat > "$INSTALL_DIR/start.sh" <<START
+#!/usr/bin/env bash
+cd "\$(dirname "\$0")"
+source .nexuspanel_ports 2>/dev/null || { VITE_PORT=4173; PHP_PORT=8000; }
+
+echo -e "\033[0;36m  → Starting NexusPanel...\033[0m"
+
 if command -v php &>/dev/null; then
-    php artisan serve --host=0.0.0.0 --port=8000 &
-    PHP_PID=$!
-    echo -e "\033[0;32m  ✓ Backend: http://0.0.0.0:8000\033[0m"
+    php artisan serve --host=0.0.0.0 --port=\$PHP_PORT &
+    PHP_PID=\$!
+    echo -e "\033[0;32m  ✓ Backend:  http://0.0.0.0:\$PHP_PORT\033[0m"
 fi
 
-# Vite frontend
-npm run dev -- --host 0.0.0.0 --port 3000 &
-VITE_PID=$!
-echo -e "\033[0;32m  ✓ Frontend: http://0.0.0.0:3000\033[0m"
+npm run dev -- --host 0.0.0.0 --port \$VITE_PORT &
+VITE_PID=\$!
+echo -e "\033[0;32m  ✓ Frontend: http://0.0.0.0:\$VITE_PORT\033[0m"
 
 echo ""
-echo -e "  \033[1mPanel accessible sur:\033[0m"
-echo -e "  http://$(hostname -I | awk '{print $1}'):3000"
+echo -e "  \033[1mPanel accessible sur :\033[0m"
+echo -e "  \033[0;36mhttp://\$(hostname -I | awk '{print \$1}'):\$VITE_PORT\033[0m"
 echo ""
 echo "  Ctrl+C pour arrêter"
-
-trap "kill $PHP_PID $VITE_PID 2>/dev/null; exit" INT TERM
+trap "kill \$PHP_PID \$VITE_PID 2>/dev/null; exit" INT TERM
 wait
 START
     chmod +x "$INSTALL_DIR/start.sh"
 
-    # Créer aussi une commande nexuspanel dans ~/.local/bin
+    # Commande nexuspanel dans ~/.local/bin
     mkdir -p "$HOME/.local/bin"
     cat > "$HOME/.local/bin/nexuspanel" <<CLI
 #!/usr/bin/env bash
 INSTALL_DIR="${INSTALL_DIR}"
+source "\$INSTALL_DIR/.nexuspanel_ports" 2>/dev/null || { VITE_PORT=4173; PHP_PORT=8000; }
 case "\${1:-help}" in
     start)   bash "\$INSTALL_DIR/start.sh" ;;
     stop)    pkill -f "artisan serve" 2>/dev/null; pkill -f "vite" 2>/dev/null; echo "Stopped." ;;
@@ -418,14 +439,15 @@ case "\${1:-help}" in
     info)
         echo "NexusPanel v${NEXUS_VERSION}"
         echo "Dir: \$INSTALL_DIR"
-        echo "URL: http://\$(hostname -I | awk '{print \$1}'):3000"
+        echo "Frontend: http://\$(hostname -I | awk '{print \$1}'):\$VITE_PORT"
+        echo "Backend:  http://\$(hostname -I | awk '{print \$1}'):\$PHP_PORT"
         ;;
     *)
         echo "nexuspanel start    — Démarrer le panel"
         echo "nexuspanel stop     — Arrêter le panel"
         echo "nexuspanel update   — Mettre à jour"
         echo "nexuspanel logs     — Voir les logs"
-        echo "nexuspanel info     — Infos"
+        echo "nexuspanel info     — Infos + ports"
         ;;
 esac
 CLI
@@ -476,13 +498,14 @@ print_summary() {
         echo -e "  ${DIM}nexuspanel update${NC}   — Mise à jour"
         echo -e "  ${DIM}nexuspanel logs${NC}     — Logs en direct"
     else
+        source "$INSTALL_DIR/.nexuspanel_ports" 2>/dev/null || VITE_PORT="voir nexuspanel info"
         echo -e "  ${Y}Pour démarrer le panel :${NC}"
         echo -e "  ${C}nexuspanel start${NC}"
         echo -e "  ${DIM}ou${NC}"
         echo -e "  ${C}bash ${INSTALL_DIR}/start.sh${NC}"
         echo ""
         echo -e "  ${Y}Panel accessible sur :${NC}"
-        echo -e "  ${BOLD}http://$(hostname -I | awk '{print $1}'):3000${NC}"
+        echo -e "  ${BOLD}http://$(hostname -I | awk '{print $1}'):${VITE_PORT}${NC}"
         echo ""
         echo -e "  ${DIM}Note: recharge ton shell pour avoir la commande nexuspanel :${NC}"
         echo -e "  ${C}source ~/.bashrc${NC}"
