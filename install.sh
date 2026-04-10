@@ -226,15 +226,15 @@ install_panel() {
     step "Downloading NexusPanel"
     mkdir -p "$INSTALL_DIR"
 
-    if [ -d "$INSTALL_DIR/.git" ]; then
-        warn "Installation existante trouvée — mise à jour"
-        (git -C "$INSTALL_DIR" fetch origin main >> "$LOG_FILE" 2>&1
-         git -C "$INSTALL_DIR" reset --hard origin/main >> "$LOG_FILE" 2>&1) &
-        spinner $! "Pulling latest changes"
-    else
-        (git clone --depth=1 "$NEXUS_REPO" "$INSTALL_DIR" >> "$LOG_FILE" 2>&1) &
-        spinner $! "Cloning repository"
+    # Toujours repartir propre
+    if [ -d "$INSTALL_DIR" ]; then
+        warn "Dossier existant supprimé pour installation propre"
+        rm -rf "$INSTALL_DIR"
     fi
+    mkdir -p "$INSTALL_DIR"
+
+    (git clone --depth=1 "$NEXUS_REPO" "$INSTALL_DIR" >> "$LOG_FILE" 2>&1) &
+    spinner $! "Cloning repository"
 
     cd "$INSTALL_DIR"
 
