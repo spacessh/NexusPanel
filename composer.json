@@ -1,0 +1,1 @@
+{\n  "name": "nexuspanel",\n  "version": "1.0.0",\n  "description": "A game server management panel",\n  "main": "index.js",\n  "scripts": {\n    "start": "node index.js",\n    "test": "jest"\n  },\n  "dependencies": {},\n  "devDependencies": {}\n}
