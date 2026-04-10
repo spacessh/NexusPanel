@@ -9,21 +9,17 @@ export default defineConfig({
             '@': path.resolve(__dirname, 'resources/scripts'),
         },
     },
+    root: '.',
+    publicDir: false,
     build: {
         outDir: 'public/build',
         manifest: true,
         rollupOptions: {
-            input: 'resources/scripts/index.tsx',
+            input: 'index.html',
         },
     },
     server: {
         port: 3000,
-        proxy: {
-            '/api': 'http://localhost:8000',
-            '/ws': {
-                target: 'ws://localhost:6001',
-                ws: true,
-            },
-        },
+        host: '0.0.0.0',
     },
 });
