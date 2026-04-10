@@ -144,7 +144,7 @@ install_panel() {
 
     step "Installing Node dependencies"
     info "npm install en cours..."
-    npm install 2>&1 | tee -a "$LOG_FILE"
+    npm install --legacy-peer-deps 2>&1 | tee -a "$LOG_FILE"
     log "Node dependencies OK"
 
     step "Building frontend"
