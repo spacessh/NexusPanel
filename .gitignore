@@ -33,3 +33,5 @@ Thumbs.db
 # Build
 dist/
 *.local
+
+# Keep package-lock for reproducible installs

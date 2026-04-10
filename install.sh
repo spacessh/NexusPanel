@@ -143,8 +143,8 @@ install_panel() {
     cd "$INSTALL_DIR"
 
     step "Installing Node dependencies"
-    info "npm ci en cours..."
-    npm ci 2>&1 | tee -a "$LOG_FILE"
+    info "npm install en cours..."
+    npm install 2>&1 | tee -a "$LOG_FILE"
     log "Node dependencies OK"
 
     step "Building frontend"
@@ -159,6 +159,10 @@ install_panel() {
     sed -i "s|DB_HOST=.*|DB_HOST=127.0.0.1|"             .env
     sed -i "s|APP_ENV=.*|APP_ENV=production|"            .env
     sed -i "s|APP_DEBUG=.*|APP_DEBUG=false|"             .env
+    # Injecter email et mot de passe admin directement
+    echo ""                                              >> .env
+    echo "NEXUS_ADMIN_EMAIL=${ADMIN_EMAIL}"              >> .env
+    echo "NEXUS_ADMIN_PASSWORD=${ADMIN_PASS}"            >> .env
 
     if command -v php &>/dev/null && [ -f artisan ]; then
         php artisan key:generate --force 2>&1 | tee -a "$LOG_FILE"
