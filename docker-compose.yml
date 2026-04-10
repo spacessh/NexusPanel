@@ -1,0 +1,87 @@
+version: '3.9'
+
+services:
+  nexuspanel:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: nexuspanel
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - APP_ENV=production
+      - APP_KEY=${APP_KEY}
+      - DB_HOST=nexuspanel-db
+      - DB_DATABASE=${DB_DATABASE:-nexuspanel}
+      - DB_USERNAME=${DB_USERNAME:-nexuspanel}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=nexuspanel-redis
+      - PUSHER_HOST=nexuspanel-ws
+    volumes:
+      - nexuspanel_storage:/var/www/nexuspanel/storage
+      - nexuspanel_logs:/var/www/nexuspanel/storage/logs
+    depends_on:
+      nexuspanel-db:
+        condition: service_healthy
+      nexuspanel-redis:
+        condition: service_healthy
+    networks:
+      - nexuspanel
+
+  nexuspanel-db:
+    image: mariadb:11
+    container_name: nexuspanel-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${DB_DATABASE:-nexuspanel}
+      MYSQL_USER: ${DB_USERNAME:-nexuspanel}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-changeMe123!}
+    volumes:
+      - nexuspanel_db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nexuspanel
+
+  nexuspanel-redis:
+    image: redis:7-alpine
+    container_name: nexuspanel-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - nexuspanel_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - nexuspanel
+
+  nexuspanel-ws:
+    image: beyondcode/laravel-websockets:latest
+    container_name: nexuspanel-ws
+    restart: unless-stopped
+    ports:
+      - "6001:6001"
+    environment:
+      - APP_KEY=${APP_KEY}
+      - PUSHER_APP_ID=${PUSHER_APP_ID:-nexuspanel}
+    networks:
+      - nexuspanel
+
+volumes:
+  nexuspanel_storage:
+  nexuspanel_logs:
+  nexuspanel_db:
+  nexuspanel_redis:
+
+networks:
+  nexuspanel:
+    driver: bridge
